@@ -149,6 +149,7 @@ class Model(nn.Module):
         right_r = slice(w//2 - w, None)
 
         # batch size, number of color channels
+        print(y_chops[0][0].size())
         b, c = y_chops[0][0].size()[:-2]
         y = [y_chop[0].new(b, c, h, w) for y_chop in y_chops]
         for y_chop, _y in zip(y_chops, y):

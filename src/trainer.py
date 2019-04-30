@@ -38,13 +38,15 @@ class Trainer():
         self.model.train()
 
         timer_data, timer_model = utility.timer(), utility.timer()
-        for batch, (lr, hr, _, idx_scale) in enumerate(self.loader_train):
+        for batch, (lr, hr, _, _) in enumerate(self.loader_train):
             lr, hr = self.prepare(lr, hr)
             timer_data.hold()
             timer_model.tic()
 
             self.optimizer.zero_grad()
-            sr = self.model(lr, idx_scale)
+            sr = self.model(lr, self.args.scale)
+
+            hr = hr.long()
             loss = self.loss(sr, hr)
             loss.backward()
             if self.args.gclip > 0:
@@ -86,8 +88,17 @@ class Trainer():
                 d.dataset.set_scale(idx_scale)
                 for lr, hr, filename, _ in tqdm(d, ncols=80):
                     lr, hr = self.prepare(lr, hr)
+                    #print(lr.shape)
+                    #print(hr.shape)
                     sr = self.model(lr, idx_scale)
-                    sr = utility.quantize(sr, self.args.rgb_range)
+                    sr = torch.argmax(sr, dim=1)
+                    print(sr.shape)
+                    input()
+                    print(sr[0, 0])
+                    print(hr[0, 0])
+                    input()
+                    sr = sr.float().div(self.args.rgb_range)
+                    #sr = utility.quantize(sr, self.args.rgb_range)
 
                     save_list = [sr]
                     self.ckp.log[-1, idx_data, idx_scale] += utility.calc_psnr(
