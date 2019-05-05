@@ -27,6 +27,9 @@ class Loss(nn.modules.loss._Loss):
                 loss_function = nn.L1Loss()
             elif loss_type == 'CE':
                 loss_function = nn.CrossEntropyLoss()
+            elif loss_type == 'TV':
+                module = import_module('loss.loss_with_tv')
+                loss_function = getattr(module, 'Weighted_Loss')(args)
             elif loss_type.find('VGG') >= 0:
                 module = import_module('loss.vgg')
                 loss_function = getattr(module, 'VGG')(
@@ -68,11 +71,14 @@ class Loss(nn.modules.loss._Loss):
 
         if args.load != '': self.load(ckp.dir, cpu=args.cpu)
 
-    def forward(self, sr, hr):
+    def forward(self, sr, hr, tv_t=None, tv_s=None, iters=None):
         losses = []
         for i, l in enumerate(self.loss):
             if l['function'] is not None:
-                loss = l['function'](sr, hr)
+                if l['type']=='TV':
+                    loss = l['function'](sr, hr, tv_t, tv_s, iters)
+                else:
+                    loss = l['function'](sr, hr)
                 effective_loss = l['weight'] * loss
                 losses.append(effective_loss)
                 self.log[-1, i] += effective_loss.item()

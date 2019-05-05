@@ -46,7 +46,7 @@ class EDSR_CLS(nn.Module):
         self.head = nn.Sequential(*m_head)
         self.body = nn.Sequential(*m_body)
         self.tail = nn.Sequential(*m_tail)
-        self.last = conv(n_feats, 3*256, kernel_size)
+        self.last = nn.Sequential(conv(n_feats, n_feats, kernel_size), conv(n_feats, 256*3, 1))
 
     def forward(self, x):
         x = self.sub_mean(x)

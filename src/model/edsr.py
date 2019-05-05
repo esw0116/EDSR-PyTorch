@@ -11,15 +11,17 @@ url = {
     'r32f256x4': 'https://cv.snu.ac.kr/research/EDSR/models/edsr_x4-4f62e9ef.pt'
 }
 
-def make_model(args, parent=False):
-    return EDSR(args)
+def make_model(args, student=False):
+    return EDSR(args, student)
 
 class EDSR(nn.Module):
-    def __init__(self, args, conv=common.default_conv):
+    def __init__(self, args, student, conv=common.default_conv):
         super(EDSR, self).__init__()
 
-        n_resblocks = args.n_resblocks
-        n_feats = args.n_feats
+        n_resblocks = args.n_resblocks_s if student else args.n_resblocks
+        n_feats = args.n_feats_s if student else args.n_feats
+        res_scale = args.res_scale_s if student else args.res_scale
+
         kernel_size = 3 
         scale = args.scale[0]
         act = nn.ReLU(True)
@@ -33,7 +35,7 @@ class EDSR(nn.Module):
         # define body module
         m_body = [
             common.ResBlock(
-                conv, n_feats, kernel_size, act=act, res_scale=args.res_scale
+                conv, n_feats, kernel_size, act=act, res_scale=res_scale
             ) for _ in range(n_resblocks)
         ]
         m_body.append(conv(n_feats, n_feats, kernel_size))

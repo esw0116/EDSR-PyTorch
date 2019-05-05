@@ -7,13 +7,17 @@ import torch.nn.parallel as P
 import torch.utils.model_zoo
 
 class Model(nn.Module):
-    def __init__(self, args, ckp):
+    def __init__(self, args, ckp, student=False):
         super(Model, self).__init__()
         print('Making model...')
 
+        my_model_str = 'model' if not student else 'model_s'
+        my_model = getattr(args, my_model_str)
+
+        self.student = student
         self.scale = args.scale
         self.idx_scale = 0
-        self.input_large = (args.model == 'VDSR')
+        self.input_large = (my_model == 'VDSR')
         self.self_ensemble = args.self_ensemble
         self.chop = args.chop
         self.precision = args.precision
@@ -22,15 +26,18 @@ class Model(nn.Module):
         self.n_GPUs = args.n_GPUs
         self.save_models = args.save_models
 
-        module = import_module('model.' + args.model.lower())
-        self.model = module.make_model(args).to(self.device)
+        module = import_module('model.' + my_model.lower())
+        self.model = module.make_model(args, student).to(self.device)
         if args.precision == 'half':
             self.model.half()
 
+        pre_train = args.pre_train_s if student else args.pre_train
+        resume = args.resume if student else 0
+
         self.load(
             ckp.get_path('model'),
-            pre_train=args.pre_train,
-            resume=args.resume,
+            pre_train=pre_train,
+            resume=resume,
             cpu=args.cpu
         )
         print(self.model, file=ckp.log_file)
@@ -118,11 +125,12 @@ class Model(nn.Module):
             a[..., bottom, left],
             a[..., bottom, right]
         ]) for a in args]
-
+        
         y_chops = []
         if h * w < 4 * min_size:
             for i in range(0, 4, n_GPUs):
                 x = [x_chop[i:(i + n_GPUs)] for x_chop in x_chops]
+                
                 y = P.data_parallel(self.model, *x, range(n_GPUs))
                 if not isinstance(y, list): y = [y]
                 if not y_chops:
@@ -132,6 +140,10 @@ class Model(nn.Module):
                         y_chop.extend(_y.chunk(n_GPUs, dim=0))
         else:
             for p in zip(*x_chops):
+                for _p in p:
+                    #print('!!')
+                    _p.unsqueeze_(0)
+                #print(p[0].size())
                 y = self.forward_chop(*p, shave=shave, min_size=min_size)
                 if not isinstance(y, list): y = [y]
                 if not y_chops:
@@ -149,7 +161,7 @@ class Model(nn.Module):
         right_r = slice(w//2 - w, None)
 
         # batch size, number of color channels
-        print(y_chops[0][0].size())
+        #print(y_chops[0][0].size())
         b, c = y_chops[0][0].size()[:-2]
         y = [y_chop[0].new(b, c, h, w) for y_chop in y_chops]
         for y_chop, _y in zip(y_chops, y):

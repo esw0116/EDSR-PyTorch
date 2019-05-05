@@ -13,6 +13,7 @@ import numpy as np
 import imageio
 
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
 
@@ -157,6 +158,14 @@ class checkpoint():
                 normalized = v[0].mul(255 / self.args.rgb_range)
                 tensor_cpu = normalized.byte().permute(1, 2, 0).cpu()
                 self.queue.put(('{}{}.png'.format(filename, p), tensor_cpu))
+
+def calc_TV(img):
+    num_channels = img.shape[1]
+    weight = torch.Tensor([0.1, 0.1, 0.1, 0.1, 0.2, 0.1, 0.1, 0.1, 0.1]).reshape(1, 1, 3, 3).repeat(3,1,1,1)
+    weight = weight.type_as(img)
+    img_output = F.conv2d(img, weight, padding=1, groups=num_channels)
+
+    return img_output
 
 def quantize(img, rgb_range):
     pixel_range = 255 / rgb_range

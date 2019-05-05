@@ -12,6 +12,8 @@ checkpoint = utility.checkpoint(args)
 
 def main():
     global model
+    string = 'dir_data'
+    print(getattr(args, string))
     if args.data_test == ['video']:
         from videotester import VideoTester
         model = model.Model(args, checkpoint)
@@ -20,7 +22,9 @@ def main():
     else:
         if checkpoint.ok:
             loader = data.Data(args)
-            model = model.Model(args, checkpoint)
+            model_t = model.Model(args, checkpoint)
+            model_s = model.Model(args, checkpoint, student=True)
+            model = [model_t, model_s]
             loss_ = loss.Loss(args, checkpoint) if not args.test_only else None
             t = Trainer(args, loader, model, loss_, checkpoint)
             while not t.terminate():

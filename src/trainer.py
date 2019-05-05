@@ -16,7 +16,7 @@ class Trainer():
         self.ckp = ckp
         self.loader_train = loader.loader_train
         self.loader_test = loader.loader_test
-        self.model = my_model
+        self.model_t, self.model = my_model
         self.loss = my_loss
         self.optimizer = utility.make_optimizer(args, self.model)
 
@@ -35,6 +35,7 @@ class Trainer():
             '[Epoch {}]\tLearning rate: {:.2e}'.format(epoch, Decimal(lr))
         )
         self.loss.start_log()
+        self.model_t.eval()
         self.model.train()
 
         timer_data, timer_model = utility.timer(), utility.timer()
@@ -44,10 +45,16 @@ class Trainer():
             timer_model.tic()
 
             self.optimizer.zero_grad()
+            sr_prior = self.model_t(lr, self.args.scale)
             sr = self.model(lr, self.args.scale)
 
-            hr = hr.long()
-            loss = self.loss(sr, hr)
+            student_gt = torch.abs(sr_prior - hr)
+            teacher_gt = torch.abs(sr - hr)
+
+            tv_teacher = utility.calc_TV(teacher_gt)
+            tv_student = utility.calc_TV(student_gt)
+
+            loss = self.loss(sr, hr, tv_teacher, tv_student, epoch-1)
             loss.backward()
             if self.args.gclip > 0:
                 utils.clip_grad_value_(
@@ -88,17 +95,9 @@ class Trainer():
                 d.dataset.set_scale(idx_scale)
                 for lr, hr, filename, _ in tqdm(d, ncols=80):
                     lr, hr = self.prepare(lr, hr)
-                    #print(lr.shape)
-                    #print(hr.shape)
+
                     sr = self.model(lr, idx_scale)
-                    sr = torch.argmax(sr, dim=1)
-                    print(sr.shape)
-                    input()
-                    print(sr[0, 0])
-                    print(hr[0, 0])
-                    input()
-                    sr = sr.float().div(self.args.rgb_range)
-                    #sr = utility.quantize(sr, self.args.rgb_range)
+                    sr = utility.quantize(sr, self.args.rgb_range)
 
                     save_list = [sr]
                     self.ckp.log[-1, idx_data, idx_scale] += utility.calc_psnr(
